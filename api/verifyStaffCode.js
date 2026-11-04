@@ -67,9 +67,33 @@ async function recordFailure(db, ref) {
 
 function getAdmin() {
   if (admin.apps.length) return admin;
+
+  // Preferred: complete service-account JSON stored in Vercel.
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is missing');
-  const serviceAccount = JSON.parse(raw);
+  let serviceAccount;
+
+  if (raw) {
+    serviceAccount = JSON.parse(raw);
+  } else {
+    // Backward compatibility with the three environment variables already
+    // configured in the original Vercel project.
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error(
+        'Firebase configuration missing: set FIREBASE_SERVICE_ACCOUNT_JSON or all of FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY'
+      );
+    }
+
+    serviceAccount = {
+      projectId,
+      clientEmail,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+    };
+  }
+
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   return admin;
 }
